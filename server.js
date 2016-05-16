@@ -59,7 +59,7 @@ app.use(sessionHandler);
 var sessions = {};
 var candidatesQueue = {};
 var kurentoClient = null;
-
+var videoUrlToPlay = null;
 /*
  * Server startup
  */
@@ -107,6 +107,7 @@ wss.on('connection', function(ws) {
         switch (message.id) {
         case 'start':
             sessionId = request.session.id;
+            videoUrlToPlay= message.videourl;
             start(sessionId, ws, message.sdpOffer, function(error, sdpAnswer) {
                 if (error) {
                     return ws.send(JSON.stringify({
@@ -178,13 +179,16 @@ function start(sessionId, ws, sdpOffer, callback) {
                 return callback(error);
             }
             pipeline.create('PlayerEndpoint',
-                {uri: "http://files.kurento.org/video/format/sintel.webm"},
+                {uri: videoUrlToPlay},
                 function(error, player)
                 {
+                    if (error){
+                        console.log('error while creating PlayerEndpoint:'+e);
+                    }
                     pipeline.create('WebRtcEndpoint', function(error, webRtcEndpoint)
                     {
                         if (error){
-                            console.log('error while creating httpEndpoit'+error);
+                            console.log('error while creating WebRtcEndpoint'+error);
                         }
 
                         if (candidatesQueue[sessionId]) {
@@ -215,7 +219,7 @@ function start(sessionId, ws, sdpOffer, callback) {
                             });
                             webRtcEndpoint.gatherCandidates(function(error) {
                                 if (error) {
-                                    console.log('yev: gather candidate error'+error);
+                                    pipeline.release();
                                     return callback(error);
                                 }
                             });
@@ -223,27 +227,17 @@ function start(sessionId, ws, sdpOffer, callback) {
                             player.play(function(error)
                             {
                                 if(error){
-                                    console.log('yev: player play error'+error);
+                                    pipeline.release();
+                                    return callback(error);
                                 }
-
-
                             });
                             ws.send(JSON.stringify({
                                 id : 'videoInfo',
                                 candidate : candidate
                             }));
                         });
-
                     });
-
-
-
-
                 });
-
-
-
-
         });
     });
 }
