@@ -233,7 +233,8 @@ function start(sessionId, ws, sdpOffer, callback) {
                             });
                             ws.send(JSON.stringify({
                                 id : 'videoInfo',
-                                candidate : candidate
+                                'isSeekable' : player.getVideoInfo().isSeekable(),
+                                'videoDuration': player.getVideoInfo().getDuration()
                             }));
                         });
                     });
