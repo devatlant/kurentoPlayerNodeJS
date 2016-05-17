@@ -12,7 +12,7 @@ npm install
 ```bash
 npm start -- --ws_uri=ws://localhost:8888/kurento
 ```
-Note: Kurento Media Server should be up and running.
+Note: Kurento Media Server should be up and running. To simplify the Kurento installation, I suggest you to use the official kurento Docker image from [Docker hub](https://hub.docker.com/r/kurento/kurento-media-server/)
 
 Next, open any WebRTC compatible browser (FireFox, Chrome, Opera) and go to 
 ```bash
