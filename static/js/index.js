@@ -196,7 +196,6 @@ function doSeek() {
 }
 
 function getPosition() {
-	alert('getPosition!');
 	var message = {
 		id : 'getPosition'
 	}

@@ -24,6 +24,7 @@ var kurento = require('kurento-client');
 var fs    = require('fs');
 var https = require('https');
 
+
 var argv = minimist(process.argv.slice(2), {
     default: {
         as_uri: 'https://localhost:8443/',
@@ -74,6 +75,8 @@ var wss = new ws.Server({
     server : server,
     path : '/player'
 });
+
+var myPlayer;
 
 /*
  * Management of WebSocket messages
@@ -130,7 +133,14 @@ wss.on('connection', function(ws) {
         case 'onIceCandidate':
             onIceCandidate(sessionId, message.candidate);
             break;
-
+        case 'getPosition':
+            var position = getPosition();
+            console.log('get position called');
+            ws.send(JSON.stringify({
+                id : 'position',
+                position : position._id
+            }));
+            break;
         default:
             ws.send(JSON.stringify({
                 id : 'error',
@@ -185,6 +195,7 @@ function start(sessionId, ws, sdpOffer, callback) {
                     if (error){
                         console.log('error while creating PlayerEndpoint:'+e);
                     }
+                    myPlayer = player;
                     pipeline.create('WebRtcEndpoint', function(error, webRtcEndpoint)
                     {
                         if (error){
@@ -205,11 +216,12 @@ function start(sessionId, ws, sdpOffer, callback) {
                                 candidate : candidate
                             }));
                         });
-                        player.connect(webRtcEndpoint, function(error, pipeline)
-                        {
+                        player.connect(webRtcEndpoint, function(error, pipeline){
                             if (error){
                                 console.log("connect error: "+error);
                             }
+
+
                             webRtcEndpoint.processOffer(sdpOffer, function(error, sdpAnswer) {
                                 if (error) {
                                     pipeline.release();
@@ -223,6 +235,26 @@ function start(sessionId, ws, sdpOffer, callback) {
                                     return callback(error);
                                 }
                             });
+                            webRtcEndpoint.on('MediaFlowInStateChange', function(state, pad, mediaType){
+                                player.getVideoInfo(function(error, result){
+                                    if (error){
+                                        console.log('--error : '+error);
+                                    }
+                                    //FIXME find better event
+                                    if (state && state.mediaType === 'VIDEO' && state.state === 'FLOWING' ){
+                                        ws.send(JSON.stringify({
+                                            id : 'videoInfo',
+                                            'isSeekable' : result.isSeekable,
+                                            'initSeekable': result.seekableInit,
+                                            'endSeekable': result.seekableEnd,
+                                            'videoDuration': result.duration
+                                        }));
+                                    }
+                                });
+                            });
+                            player.on('EndOfStream', function(){
+                                ws.send(JSON.stringify({id: 'playEnd'}));
+                            });
 
                             player.play(function(error)
                             {
@@ -231,11 +263,6 @@ function start(sessionId, ws, sdpOffer, callback) {
                                     return callback(error);
                                 }
                             });
-                            ws.send(JSON.stringify({
-                                id : 'videoInfo',
-                                'isSeekable' : player.getVideoInfo().isSeekable(),
-                                'videoDuration': player.getVideoInfo().getDuration()
-                            }));
                         });
                     });
                 });
@@ -288,6 +315,19 @@ function onIceCandidate(sessionId, _candidate) {
         }
         candidatesQueue[sessionId].push(candidate);
     }
+}
+
+function getPosition(){
+    if (!myPlayer){
+        console.log('Error player is nil!');
+    }
+    return myPlayer.getPosition(function(error, result){
+        if(error){
+            console.error('getPosition failed : '+error);
+            return;
+        }
+        return result;
+    });
 }
 
 app.use(express.static(path.join(__dirname, 'static')));
