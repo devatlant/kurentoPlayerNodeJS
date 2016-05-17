@@ -77,6 +77,7 @@ var wss = new ws.Server({
 });
 
 var myPlayer;
+var myPipeline;
 
 /*
  * Management of WebSocket messages
@@ -125,11 +126,18 @@ wss.on('connection', function(ws) {
                 }));
             });
             break;
-
         case 'stop':
-            stop(sessionId);
+            stop();
             break;
-
+        case 'pause':
+            pause();
+            break;
+        case 'resume':
+            resume();
+            break;
+        case 'seek':
+            seek(parseInt(message.newPosition));
+            break;
         case 'onIceCandidate':
             onIceCandidate(sessionId, message.candidate);
             break;
@@ -188,6 +196,7 @@ function start(sessionId, ws, sdpOffer, callback) {
             if (error) {
                 return callback(error);
             }
+            myPipeline = pipeline;
             pipeline.create('PlayerEndpoint',
                 {uri: videoUrlToPlay},
                 function(error, player)
@@ -254,6 +263,7 @@ function start(sessionId, ws, sdpOffer, callback) {
                             });
                             player.on('EndOfStream', function(){
                                 ws.send(JSON.stringify({id: 'playEnd'}));
+                                myPipeline.release();
                             });
 
                             player.play(function(error)
@@ -289,16 +299,35 @@ function connectMediaElements(webRtcEndpoint, callback) {
     });
 }
 
-function stop(sessionId) {
-    if (sessions[sessionId]) {
-        var pipeline = sessions[sessionId].pipeline;
-        console.info('Releasing pipeline');
-        pipeline.release();
-
-        delete sessions[sessionId];
-        delete candidatesQueue[sessionId];
+function stop() {
+    if (!myPlayer){
+        console.log('Error player is nil!');
     }
+    myPlayer.stop();
+    myPipeline.release();
+};
+
+function pause(){
+    if (!myPlayer){
+        console.log('Error player is nil!');
+    }
+    myPlayer.pause();
 }
+
+function resume(){
+    if (!myPlayer){
+        console.log('Error player is nil!');
+    }
+    myPlayer.play();
+}
+
+function seek(newPosition){
+    if (!myPlayer){
+        console.log('Error player is nil!');
+    }
+    myPlayer.setPosition(newPosition);
+}
+
 
 function onIceCandidate(sessionId, _candidate) {
     var candidate = kurento.register.complexTypes.IceCandidate(_candidate);
@@ -323,7 +352,6 @@ function getPosition(){
     }
     return myPlayer.getPosition(function(error, result){
         if(error){
-            console.error('getPosition failed : '+error);
             return;
         }
         return result;

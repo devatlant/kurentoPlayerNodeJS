@@ -35,8 +35,6 @@ window.onbeforeunload = function() {
 
 ws.onmessage = function(message) {
 	var parsedMessage = JSON.parse(message.data);
-	console.info('Received message: ' + message.data);
-
 	switch (parsedMessage.id) {
 		case 'startResponse':
 			startResponse(parsedMessage);
@@ -66,7 +64,14 @@ ws.onmessage = function(message) {
 			document.getElementById("videoPosition").value = parsedMessage.position;
 			break;
 		case 'iceCandidate':
-			console.log('EMPTY MES:::')
+			break;
+		case 'stop':
+			console.log('-- stop');
+			stop();
+			break;
+		case 'pause':
+			console.log('-- pause');
+			pause();
 			break;
 		default:
 			if (state == I_AM_STARTING) {
@@ -74,6 +79,8 @@ ws.onmessage = function(message) {
 			}
 			onError('Unrecognized message', parsedMessage);
 	}
+
+	console.info('Received message: ' + message.data);
 }
 
 function start() {
@@ -189,8 +196,8 @@ function playEnd() {
 
 function doSeek() {
 	var message = {
-		id : 'doSeek',
-		position: document.getElementById("seekPosition").value
+		id : 'seek',
+		newPosition: document.getElementById("seekPosition").value
 	}
 	sendMessage(message);
 }
