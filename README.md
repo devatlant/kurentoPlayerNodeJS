@@ -19,4 +19,4 @@ Next, open any WebRTC compatible browser (FireFox, Chrome, Opera) and go to
 https://127.0.0.1:8443
 ```
 
-You have to accept the untrsuted certificate to be able to see the app.
+You have to accept the untrsuted certificate within your Browser to be able to see the app.
