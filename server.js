@@ -127,23 +127,22 @@ wss.on('connection', function(ws) {
             });
             break;
         case 'stop':
-            stop();
+            stop(sessionId);
             break;
         case 'pause':
-            pause();
+            pause(sessionId);
             break;
         case 'resume':
-            resume();
+            resume(sessionId);
             break;
         case 'seek':
-            seek(parseInt(message.newPosition));
+            seek(sessionId, parseInt(message.newPosition));
             break;
         case 'onIceCandidate':
             onIceCandidate(sessionId, message.candidate);
             break;
         case 'getPosition':
-            var position = getPosition();
-            console.log('get position called');
+            var position = getPosition(sessionId);
             ws.send(JSON.stringify({
                 id : 'position',
                 position : position._id
@@ -196,7 +195,6 @@ function start(sessionId, ws, sdpOffer, callback) {
             if (error) {
                 return callback(error);
             }
-            myPipeline = pipeline;
             pipeline.create('PlayerEndpoint',
                 {uri: videoUrlToPlay},
                 function(error, player)
@@ -205,7 +203,7 @@ function start(sessionId, ws, sdpOffer, callback) {
                         console.log('error while creating PlayerEndpoint:'+e);
                     }
                     myPlayer = player;
-                    pipeline.create('WebRtcEndpoint', function(error, webRtcEndpoint)
+                    myPipeline = pipeline.create('WebRtcEndpoint', function(error, webRtcEndpoint)
                     {
                         if (error){
                             console.log('error while creating WebRtcEndpoint'+error);
@@ -233,14 +231,19 @@ function start(sessionId, ws, sdpOffer, callback) {
 
                             webRtcEndpoint.processOffer(sdpOffer, function(error, sdpAnswer) {
                                 if (error) {
-                                    pipeline.release();
+                                    myPipeline.release();
                                     return callback(error);
+                                }
+                                sessions[sessionId] = {
+                                    'pipeline' : myPipeline,
+                                    'webRtcEndpoint' : webRtcEndpoint,
+                                    'player':player
                                 }
                                 return callback(null, sdpAnswer);
                             });
                             webRtcEndpoint.gatherCandidates(function(error) {
                                 if (error) {
-                                    pipeline.release();
+                                    myPipeline.release();
                                     return callback(error);
                                 }
                             });
@@ -269,7 +272,6 @@ function start(sessionId, ws, sdpOffer, callback) {
                             player.play(function(error)
                             {
                                 if(error){
-                                    pipeline.release();
                                     return callback(error);
                                 }
                             });
@@ -299,33 +301,45 @@ function connectMediaElements(webRtcEndpoint, callback) {
     });
 }
 
-function stop() {
-    if (!myPlayer){
-        console.log('Error player is nil!');
+function stop(sessionId) {
+    if (sessions[sessionId]) {
+        var pipeline = sessions[sessionId].pipeline;
+        console.info('Releasing pipeline');
+        pipeline.release();
+        var player = sessions[sessionId].player;
+        console.log('Releasing player');
+        player.stop();
+
+
+        delete sessions[sessionId];
+        delete candidatesQueue[sessionId];
+    }else{
+        console.error('not known session id - '+sessionId);
     }
-    myPlayer.stop();
-    myPipeline.release();
 };
 
-function pause(){
-    if (!myPlayer){
-        console.log('Error player is nil!');
+function pause(sessionId){
+    if (sessions[sessionId]) {
+        sessions[sessionId].player.pause();
+    }else{
+        console.error('not known session id - '+sessionId);
     }
-    myPlayer.pause();
 }
 
-function resume(){
-    if (!myPlayer){
-        console.log('Error player is nil!');
+function resume(sessionId){
+    if (sessions[sessionId]) {
+        sessions[sessionId].player.play();
+    }else{
+        console.error('not known session id - '+sessionId);
     }
-    myPlayer.play();
 }
 
-function seek(newPosition){
-    if (!myPlayer){
-        console.log('Error player is nil!');
+function seek(sessionId, newPosition){
+    if (sessions[sessionId]) {
+        sessions[sessionId].player.setPosition(newPosition);
+    }else{
+        console.error('not known session id - '+sessionId);
     }
-    myPlayer.setPosition(newPosition);
 }
 
 
@@ -346,16 +360,17 @@ function onIceCandidate(sessionId, _candidate) {
     }
 }
 
-function getPosition(){
-    if (!myPlayer){
-        console.log('Error player is nil!');
+function getPosition(sessionId){
+    if (sessions[sessionId]) {
+        return sessions[sessionId].player.getPosition(function(error, result){
+            if(error){
+                return;
+            }
+            return result;
+        });
+    }else{
+        console.error('not known session id - '+sessionId);
     }
-    return myPlayer.getPosition(function(error, result){
-        if(error){
-            return;
-        }
-        return result;
-    });
 }
 
 app.use(express.static(path.join(__dirname, 'static')));
